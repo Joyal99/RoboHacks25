@@ -129,12 +129,12 @@ int main(){
       Serial.println("Action: Turn Right");
       turnRight(DEFAULT_SPEED);
     } 
-    else if (leftVal == HIGH && rightVal == HIGH) {
+    else if (leftVal == LOW && rightVal == LOW) {
       // Both sensors see dark → line is centered; move forward.
       Serial.println("Action: Move Forward");
       moveForward(DEFAULT_SPEED);
     } 
-    else if (leftVal == LOW && rightVal == LOW) {
+    else if (leftVal == HIGH && rightVal == HIGH) {
       // Both sensors see light → line lost; perform a search maneuver.
       Serial.println("Action: Searching for line");
       // For example, slowly pivot right to try to reacquire the line.
