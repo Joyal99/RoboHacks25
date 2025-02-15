@@ -33,6 +33,13 @@ volatile char prevChar = 'U';
 unsigned long lastColorCheck = 0;
 const unsigned long colorCheckInterval = 300;  // ms
 
+
+//--------------------- Servo pulse ---------------
+#define LEFT_MAX 2000    // 2ms pulse (full left)
+#define RIGHT_MAX 1000   // 1ms pulse (full right)
+Servo myServo;           // Create servo object
+const int servoPin = 9;  // PWM pin connected to servo
+
 //--------------------------------------------
 // Motor Functions
 //--------------------------------------------
@@ -264,7 +271,20 @@ void followLine() {
     turnLeft(DEFAULT_SPEED / 2);
   }
 }
-
+//--------------------------------------------
+// Servo Functions
+//--------------------------------------------
+void dropSeed(){
+  for(int i = 0; i<2; i++){
+    myServo.writeMicroseconds(LEFT_MAX);
+    _delay_ms(3);
+    myServo.writeMicroseconds(RIGHT_MAX);
+    _delay_ms(10);
+    myServo.writeMicroseconds(LEFT_MAX);
+    Serial.println("Servo centered.");
+    _delay_ms(3);
+  }
+}
 //--------------------------------------------
 // Arduino Setup & Loop
 //--------------------------------------------
@@ -296,6 +316,7 @@ void loop() {
     // If we detect green (G) and it's a new detection
     if (col == 'G' && prevChar != 'G') {
       stopMotors();
+      dropSeed();
       delay(1000);     // 1 second stop
       prevChar = 'G';
     } 
