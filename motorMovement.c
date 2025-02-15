@@ -12,20 +12,18 @@ void turnLeft(){
   // Pivot left: Right motor forward, Left motor backward
   PORTD |= (1<<RIGHTM_FOWARD_PIN);
   PORTD &= ~(1<<RIGHTM_BACK_PIN);
+  _delay_us(10);
   PORTD &= ~(1<<LEFTM_FOWARD_PIN);
-  PORTD |= (1<<LEFTM_BACK_PIN);
-  _delay_ms(10); // Tiny delay before stopping
-  stop();
+  PORTD |= (1<<LEFTM_BACK_PIN); 
 }
 
 void turnRight(){
   // Pivot right: Left motor forward, Right motor backward
   PORTD |= (1<<LEFTM_FOWARD_PIN);
   PORTD &= ~(1<<LEFTM_BACK_PIN);
+  _delay_us(10);
   PORTD &= ~(1<<RIGHTM_FOWARD_PIN);
   PORTD |= (1<<RIGHTM_BACK_PIN);
-  _delay_ms(10); // Tiny delay before stopping
-  stop();
 }
 
 void moveFoward(){
