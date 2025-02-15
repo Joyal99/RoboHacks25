@@ -246,8 +246,8 @@ int readRightSensor() {
 //================================================================
 int main(){
   init();  // Initialize Arduino core functions
-  
-  uart_init();
+  Serial.begin(9600);
+  //uart_init();
   pinSetupCS();
   interruptSetupCS();
   motorPinSetup();
@@ -255,36 +255,32 @@ int main(){
   myServo.attach(servoPin); 
 
   while(1){
-    _delay_ms(1000);
-
-  // TEST LEFT MOTOR
-  Serial.println("Testing LEFT motor forward");
-  // Set left motor to forward direction
-  digitalWrite(LEFTM_FOWARD_PIN, HIGH);
-  digitalWrite(LEFTM_BACK_PIN,   LOW);
-  // Enable left motor via PWM
-  analogWrite(LEFTM_EN_PIN, DEFAULT_SPEED);
-  _delay_ms(3000);  // run for 3 seconds
+    // Read sensor values (assuming HIGH means black and LOW means white)
+    int leftVal = digitalRead(LEFT_SENSOR);
+    int rightVal = digitalRead(RIGHT_SENSOR);
+    
+    // Print sensor values for debugging.
+    Serial.print("Left Sensor: ");
+    Serial.print(leftVal);
+    Serial.print(" | Right Sensor: ");
+    Serial.println(rightVal);
+    
+    // Follow the black line based on sensor input:
+    if(leftVal == HIGH && rightVal == LOW) {
+      Serial.println("Turning Left");
+      turnLeft(DEFAULT_SPEED);
+    }
+    else if(leftVal == LOW && rightVal == HIGH) {
+      Serial.println("Turning Right");
+      turnRight(DEFAULT_SPEED);
+    }
+    else {
+      Serial.println("Moving Forward");
+      moveFoward(DEFAULT_SPEED);
+    }
+    
+    delay(50); // Short delay for sensor update
+  }
   
-  Serial.println("Stopping LEFT motor");
-  analogWrite(LEFTM_EN_PIN, 0);
-  digitalWrite(LEFTM_FOWARD_PIN, LOW);
-  digitalWrite(LEFTM_BACK_PIN,   LOW);
-  _delay_ms(1000);
-
-  // TEST RIGHT MOTOR
-  Serial.println("Testing RIGHT motor forward");
-  // Set right motor to forward direction
-  digitalWrite(RIGHTM_FOWARD_PIN, HIGH);
-  digitalWrite(RIGHTM_BACK_PIN,   LOW);
-  // Enable right motor via PWM
-  analogWrite(RIGHTM_EN_PIN, DEFAULT_SPEED);
-  _delay_ms(3000);  // run for 3 seconds
-  
-  Serial.println("Stopping RIGHT motor");
-  analogWrite(RIGHTM_EN_PIN, 0);
-  digitalWrite(RIGHTM_FOWARD_PIN, LOW);
-  digitalWrite(RIGHTM_BACK_PIN,   LOW);
-
-  // End of test; loop forever.
+  return 0;
 }
