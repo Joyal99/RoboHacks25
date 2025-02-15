@@ -23,7 +23,3 @@ int readRightSensor() {
     delay(10);
     return rightValue;
 }
-
-void setup() {
-    setupSensors();
-}
