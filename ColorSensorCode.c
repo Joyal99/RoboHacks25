@@ -4,10 +4,10 @@
 #include <stdio.h>
 
 // Pin Definitions
-#define CS_S0_PIN PB0
-#define CS_S1_PIN PB1
-#define CS_S2_PIN PB2
-#define CS_S3_PIN PB3
+#define CS_S0_PIN PB0 // pin 8
+#define CS_S1_PIN PB1 // pin d9
+#define CS_S2_PIN PB2 // pin d10
+#define CS_S3_PIN PB3 // pin d11
 #define CS_OUT_PIN PD2  // Use PD2 for INT0
 #define CS_LED_PIN PB5  // LED control pin
 
@@ -19,8 +19,8 @@ void interruptSetupCS();
 void colorSel(char color);
 void enableSensorLED();
 void disableSensorLED();
-uint16_t measureColorFreq(char color);
-uint16_t calibrateColor(uint16_t rawValue, char color);
+uint16_t colorFreq(char color);
+uint16_t calib(uint16_t rawValue, char color);
 
 int main() {
     pinSetupCS();
@@ -35,21 +35,21 @@ int main() {
         enableSensorLED();
         _delay_ms(100);  // Increased stabilization time
         
-        uint16_t red = measureColorFreq('R');
-        uint16_t green = measureColorFreq('G');
-        uint16_t blue = measureColorFreq('B');
+        uint16_t red = colorFreq('R');
+        uint16_t green = colorFreq('G');
+        uint16_t blue = colorFreq('B');
         
         // Apply calibration
-        red = calibrateColor(red, 'R');
-        green = calibrateColor(green, 'G');
-        blue = calibrateColor(blue, 'B');
+        red = calib(red, 'R');
+        green = calib(green, 'G');
+        blue = calib(blue, 'B');
         
         Serial.print("R: "); Serial.println(red);
         Serial.print("G: "); Serial.println(green);
         Serial.print("B: "); Serial.println(blue);
         
         // Improved color detection thresholds and logic
-        if (red < 150 && green < 150 && blue < 150) {
+        if (red < 200 && green < 200 && blue < 200) {
             Serial.println("Detected: Black");
         } else if (green > red && green > blue) {
             Serial.println("Detected: Green");
@@ -109,7 +109,7 @@ void disableSensorLED() {
     PORTB &= ~(1 << CS_LED_PIN);
 }
 
-uint16_t measureColorFreq(char color) {
+uint16_t colorFreq(char color) {
     pulse_count = 0;
     colorSel(color);
     _delay_ms(50);  // Allow filter to settle
@@ -118,7 +118,7 @@ uint16_t measureColorFreq(char color) {
     return pulse_count;
 }
 
-uint16_t calibrateColor(uint16_t rawValue, char color) {
+uint16_t calib(uint16_t rawValue, char color) {
     // Adjusted calibration values based on typical sensor response
     const uint16_t minValues[] = {30, 30, 25};  // Minimum values for R, G, B
     const float scalingFactors[] = {1.0, 1.1, 0.9};  // Scaling factors for R, G, B
