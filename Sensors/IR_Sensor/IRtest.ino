@@ -1,21 +1,20 @@
-#define IR_PIN A0                  
-
-#define BLACK_THRESHOLD 500      
+#define MS 12      // Middle Sensor
 
 void setup() {
-    Serial.begin(9600);
-
-    pinMode(IR_PIN, INPUT);
+  Serial.begin(9600);
+  pinMode(MS, INPUT);  // Set the Middle Sensor as input
 }
 
 void loop() {
-    int sensorValue = analogRead(IR_PIN);
+  // Read the Middle Sensor value
+  int sensorValue = digitalRead(MS);
 
-    if (sensorValue < BLACK_THRESHOLD) {
-        Serial.println("Black line detected!");
-    } else {
-        Serial.println("White surface detected.");
-    }
+  // Check if the sensor reads HIGH or LOW
+  if (sensorValue == HIGH) {
+    Serial.println("Sensor is HIGH");
+  } else {
+    Serial.println("Sensor is LOW");
+  }
 
-    delay(100); // Delay between readings
+  delay(100);  // Add a small delay for stability
 }
