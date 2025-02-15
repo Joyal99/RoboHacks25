@@ -76,106 +76,48 @@ void stopMotors() {
 //-------------------------------------------
 // Color Sensor
 //-------------------------------------------
-char getColor() {
-    
-        enableSensorLED();
-        _delay_ms(5);  // Increased stabilization time
-        
-        uint16_t red = measureColorFreq('R');
-        uint16_t green = measureColorFreq('G');
-        uint16_t blue = measureColorFreq('B');
-        
-        // Apply calibration
-        red = calibrateColor(red, 'R');
-        green = calibrateColor(green, 'G');
-        blue = calibrateColor(blue, 'B');
-        
-        char col;
-        
-        // Improved color detection thresholds and logic
-        if (red < 150 && green < 150 && blue < 150) {
-            col = 'B';
-        } else if (green > red && green > blue) {
-            col = 'G';
-        } else if (red > green && red > blue) {
-            col = 'R';
-        } else if (blue > red && blue > green) {
-            col = 'B';
-        } else {
-            col = 'U';
-        }
-        
-        disableSensorLED();
-        _delay_ms(2);  // Reduced delay between readings
-        return col;
-}
-
+// ISR with correct edge triggering
 ISR(INT0_vect) {
     pulse_count++;
 }
 
-void pinSetupCS() {
-    // Set S0-S3 and LED pin as outputs
-    DDRC |= (1 << CS_S0_PIN) | (1 << CS_S1_PIN) | (1 << CS_S2_PIN) | (1 << CS_S3_PIN);
-    // Set OUT pin as input with pull-up
-    DDRD &= ~(1<<CS_OUT_PIN);
-    PORTD |= (1<<CS_OUT_PIN);
-}
-
-void interruptSetupCS() {
-    EIMSK |= (1 << INT0);     // Enable INT0
-    EICRA |= (1 << ISC00);    // Trigger on any edge
-    sei();                     // Enable global interrupts
-}
-
-void colorSel(char color) {
-    switch(color) {
-        case 'R':
-            PORTB &= ~((1 << CS_S2_PIN) | (1 << CS_S3_PIN));  // S2=0, S3=0
-            break;
-        case 'G':
-            PORTB |= (1 << CS_S2_PIN);     // S2=1
-            PORTB |= (1 << CS_S3_PIN);     // S3=1
-            break;
-        case 'B':
-            PORTB &= ~(1 << CS_S2_PIN);    // S2=0
-            PORTB |= (1 << CS_S3_PIN);     // S3=1
-            break;
-    }
-}
-
-void enableSensorLED() {
-    PORTB |= (1 << CS_LED_PIN);
-}
-
-void disableSensorLED() {
-    PORTB &= ~(1 << CS_LED_PIN);
-}
-
+// Optimized measureColorFreq
 uint16_t measureColorFreq(char color) {
-    pulse_count = 0;
     colorSel(color);
-    _delay_ms(50);  // Allow filter to settle
-    pulse_count = 0;  // Reset after settling
-    _delay_ms(100);  // Measure for 100ms
+    _delay_ms(5);   // Settling time
+    pulse_count = 0;
+    _delay_ms(20);  // Measurement time
     return pulse_count;
 }
 
-uint16_t calibrateColor(uint16_t rawValue, char color) {
-    // Adjusted calibration values based on typical sensor response
-    const uint16_t minValues[] = {30, 30, 25};  // Minimum values for R, G, B
-    const float scalingFactors[] = {1.0, 1.1, 0.9};  // Scaling factors for R, G, B
+// Revised getColor() with thresholds
+char getColor() {
+    enableSensorLED();
+    _delay_ms(2);  // Reduced stabilization
+
+    uint16_t red = measureColorFreq('R');
+    uint16_t green = measureColorFreq('G');
+    uint16_t blue = measureColorFreq('B');
+
+    red = calibrateColor(red, 'R');
+    green = calibrateColor(green, 'G');
+    blue = calibrateColor(blue, 'B');
+
+    char col = 'U';
     
-    uint8_t colorIndex;
-    switch(color) {
-        case 'R': colorIndex = 0; break;
-        case 'G': colorIndex = 1; break;
-        case 'B': colorIndex = 2; break;
-        default: return rawValue;
+    if (red < 75 && green < 75 && blue < 75) {
+        col = 'B';
+    } else if (green > red * 1.2 && green > blue * 1.2) {
+        col = 'G';
+    } else if (red > green * 1.2 && red > blue * 1.2) {
+        col = 'R';
+    } else if (blue > red * 1.2 && blue > green * 1.2) {
+        col = 'B';
     }
     
-    if (rawValue <= minValues[colorIndex]) return 0;
-    return (uint16_t)((rawValue - minValues[colorIndex]) * scalingFactors[colorIndex]);
+    disableSensorLED();
+    _delay_ms(1);
+    return col;
 }
 //--------------------------------------------
 // IR Sensor Functions
@@ -211,9 +153,9 @@ int main(){
   while(1) {
     int leftVal  = readLeftSensor();
     int rightVal = readRightSensor();
-    //char col = getColor();
+    char col = getColor();
     
-    /**if(col == 'G' && prevChar != 'G'){
+    if(col == 'G' && prevChar != 'G'){
       stopMotors();
       _delay_ms(1000);
       prevChar = 'G';
@@ -225,7 +167,7 @@ int main(){
     }
     else{
 
-    }**/
+    }
 
 
     if (leftVal == LOW && rightVal == HIGH) {
