@@ -17,45 +17,57 @@
 
 volatile uint16_t pulse_count = 0;  
 
+// UART functions
+void uart_init() {
+    UBRR0H = 0;  // Set baud rate to 9600 (16MHz clock)
+    UBRR0L = 103;
+    UCSR0B = (1 << TXEN0);  // Enable transmitter
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);  // 8-bit data format
+}
+
+void uart_print(const char* str) {
+    while (*str) {
+        while (!(UCSR0A & (1 << UDRE0)));  // Wait for empty buffer
+        UDR0 = *str++;
+    }
+}
 
 void motorPinSetup() {
-    DDRD |= (1 << RIGHTM_FOWARD_PIN) | (1 << LEFTM_FOWARD_PIN) | (1 << RIGHTM_BACK_PIN) | (1 << LEFTM_BACK_PIN);
+    DDRD |= (1 << RIGHTM_FOWARD_PIN) | (1 << LEFTM_FOWARD_PIN) 
+            | (1 << RIGHTM_BACK_PIN) | (1 << LEFTM_BACK_PIN);
 }
 
 void moveForward() {
-    PORTD &= ~(1 << LEFTM_BACK_PIN);
-    PORTD &= ~(1 << RIGHTM_BACK_PIN);
-    PORTD |= (1 << LEFTM_FOWARD_PIN);
-    PORTD |= (1 << RIGHTM_FOWARD_PIN);
+    PORTD &= ~((1 << LEFTM_BACK_PIN) | (1 << RIGHTM_BACK_PIN));
+    PORTD |= (1 << LEFTM_FOWARD_PIN) | (1 << RIGHTM_FOWARD_PIN);
 }
 
 void turnLeft() {
-    PORTD |= (1 << RIGHTM_FOWARD_PIN);
-    PORTD &= ~(1 << RIGHTM_BACK_PIN);
-    PORTD &= ~(1 << LEFTM_FOWARD_PIN);
-    PORTD |= (1 << LEFTM_BACK_PIN);
+    PORTD |= (1 << RIGHTM_FOWARD_PIN) | (1 << LEFTM_BACK_PIN);
+    PORTD &= ~((1 << RIGHTM_BACK_PIN) | (1 << LEFTM_FOWARD_PIN));
     _delay_ms(500); 
 }
 
 void turnRight() {
-    PORTD |= (1 << LEFTM_FOWARD_PIN);
-    PORTD &= ~(1 << LEFTM_BACK_PIN);
-    PORTD &= ~(1 << RIGHTM_FOWARD_PIN);
-    PORTD |= (1 << RIGHTM_BACK_PIN);
+    PORTD |= (1 << LEFTM_FOWARD_PIN) | (1 << RIGHTM_BACK_PIN);
+    PORTD &= ~((1 << LEFTM_BACK_PIN) | (1 << RIGHTM_FOWARD_PIN));
     _delay_ms(500); 
 }
 
 void stopMotors() {
-    PORTD &= ~(1 << LEFTM_BACK_PIN);
-    PORTD &= ~(1 << RIGHTM_BACK_PIN);
-    PORTD &= ~(1 << LEFTM_FOWARD_PIN);
-    PORTD &= ~(1 << RIGHTM_FOWARD_PIN);
+    PORTD &= ~((1 << LEFTM_BACK_PIN) | (1 << RIGHTM_BACK_PIN) 
+            | (1 << LEFTM_FOWARD_PIN) | (1 << RIGHTM_FOWARD_PIN));
 }
 
 void pinSetupCS() {
-    DDRB |= (1 << CS_S0_PIN) | (1 << CS_S1_PIN) | (1 << CS_S2_PIN) | (1 << CS_S3_PIN) | (1 << CS_LED_PIN);
+    DDRB |= (1 << CS_S0_PIN) | (1 << CS_S1_PIN) 
+            | (1 << CS_S2_PIN) | (1 << CS_S3_PIN) | (1 << CS_LED_PIN);
     DDRD &= ~(1 << CS_OUT_PIN);  
     PORTD |= (1 << CS_OUT_PIN);
+}
+
+ISR(INT0_vect) {
+    pulse_count++;
 }
 
 void interruptSetupCS() {
@@ -74,18 +86,31 @@ void disableSensorLED() {
 
 void colorSel(char color) {
     switch (color) {
-        case 'R': PORTB &= ~((1 << CS_S2_PIN) | (1 << CS_S3_PIN)); break;  // Red
-        case 'G': PORTB |= (1 << CS_S2_PIN); PORTB |= (1 << CS_S3_PIN); break;  // Green
-        case 'B': PORTB &= ~(1 << CS_S2_PIN); PORTB |= (1 << CS_S3_PIN); break;  // Blue
+        case 'R': // Red
+            PORTB &= ~((1 << CS_S2_PIN) | (1 << CS_S3_PIN));
+            break;
+        case 'G': // Green
+            PORTB |= (1 << CS_S2_PIN) | (1 << CS_S3_PIN);
+            break;
+        case 'B': // Blue
+            PORTB &= ~(1 << CS_S2_PIN);
+            PORTB |= (1 << CS_S3_PIN);
+            break;
     }
 }
 
 uint16_t measureColorFreq(char color) {
     pulse_count = 0;
     colorSel(color);
-    _delay_ms(50);  
-    pulse_count = 0;
-    _delay_ms(100);  
+    
+    // Measure for 100ms using Timer1
+    TCCR1A = 0;
+    TCCR1B = (1 << CS12);  // 256 prescaler
+    TCNT1 = 0;
+    
+    while (TCNT1 < 62500); // ~100ms @ 16MHz
+    TCCR1B = 0;  // Stop timer
+    
     return pulse_count;
 }
 
@@ -101,50 +126,61 @@ uint16_t calibrateColor(uint16_t rawValue, char color) {
         default: return rawValue;
     }
 
-    if (rawValue <= minValues[colorIndex]) return 0;
-    return (uint16_t)((rawValue - minValues[colorIndex]) * scalingFactors[colorIndex]);
+    return (rawValue > minValues[colorIndex]) 
+            ? (uint16_t)((rawValue - minValues[colorIndex]) * scalingFactors[colorIndex])
+            : 0;
 }
 
-
 void setup() {
-    Serial.begin(9600);
-    
+    uart_init();
     motorPinSetup();
     pinSetupCS();
     interruptSetupCS();
 
-    Serial.println("System Initialized!");
-    
-    PORTB |= (1 << CS_S0_PIN);  // S0 HIGH
-    PORTB &= ~(1 << CS_S1_PIN); // S1 LOW
+    // Set color sensor frequency scaling to 20%
+    PORTB |= (1 << CS_S0_PIN);
+    PORTB &= ~(1 << CS_S1_PIN);
+
+    uart_print("System Initialized!\r\n");
 }
 
 void loop() {
     enableSensorLED();
-    _delay_ms(100); // Stabilization time
+    _delay_ms(100);  // LED stabilization
 
-    // Read color sensor values
-    uint16_t red = measureColorFreq('R');
-    uint16_t green = measureColorFreq('G');
-    uint16_t blue = measureColorFreq('B');
+    uint16_t red = calibrateColor(measureColorFreq('R'), 'R');
+    uint16_t green = calibrateColor(measureColorFreq('G'), 'G');
+    uint16_t blue = calibrateColor(measureColorFreq('B'), 'B');
+    
+    disableSensorLED();
 
-    // Apply calibration
-    red = calibrateColor(red, 'R');
-    green = calibrateColor(green, 'G');
-    blue = calibrateColor(blue, 'B');
-
-    Serial.print("R: "); Serial.print(red);
-    Serial.print(" G: "); Serial.print(green);
-    Serial.print(" B: "); Serial.println(blue);
+    // Debug output
+    char buffer[60];
+    snprintf(buffer, sizeof(buffer), "R: %4u  G: %4u  B: %4u\r\n", red, green, blue);
+    uart_print(buffer);
 
     if (red < 150 && green < 150 && blue < 150) {
-        Serial.println("Detected: Black → Continue Moving Forward");
+        uart_print("Black → Forward\r\n");
         moveForward();
     } 
     else if (green > red && green > blue) {
-        Serial.println("Detected: Green → Turn Left");
+        uart_print("Green → Left\r\n");
         turnLeft();
     } 
     else if (red > green && red > blue) {
-        Serial.println("Detected: Red → Stop");
-        stop
+        uart_print("Red → Stop\r\n");
+        stopMotors();
+    }
+    else {
+        uart_print("No clear color → Forward\r\n");
+        moveForward();
+    }
+
+    _delay_ms(100);
+}
+
+int main(void) {
+    setup();
+    while(1) loop();
+    return 0;
+}
