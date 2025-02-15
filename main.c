@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <util/delay.h>
+#include <avr/io.h>
 
 //-------------------- Motor Control Pins --------------------
 #define LEFTM_FOWARD_PIN 4    
@@ -9,11 +10,20 @@
 #define RIGHTM_EN_PIN    3    
 #define LEFTM_EN_PIN     11   
 
-#define DEFAULT_SPEED 75      
+#define DEFAULT_SPEED 100      
 
 //-------------------- IR Sensor Pins --------------------
 #define RIGHT_SENSOR 12       
-#define LEFT_SENSOR 8         
+#define LEFT_SENSOR 8   
+
+//--------------------- CColor Sensor Pins ---------------
+volatile uint16_t pulse_count = 0;
+#define CS_S0_PIN PC0  // A0
+#define CS_S1_PIN PC1  // A1
+#define CS_S2_PIN PC2  // A2
+#define CS_S3_PIN PC3  // A3
+#define CS_OUT_PIN PD2  // Use PD2 for INT0
+#define CS_LED_PIN PB5  // LED control pin
 
 //--------------------------------------------
 // Motor Functions
@@ -63,7 +73,110 @@ void stopMotors() {
   digitalWrite(RIGHTM_FOWARD_PIN, LOW);
   digitalWrite(RIGHTM_BACK_PIN,  LOW);
 }
+//-------------------------------------------
+// Color Sensor
+//-------------------------------------------
+char getColor() {
+    
+        enableSensorLED();
+        _delay_ms(5);  // Increased stabilization time
+        
+        uint16_t red = measureColorFreq('R');
+        uint16_t green = measureColorFreq('G');
+        uint16_t blue = measureColorFreq('B');
+        
+        // Apply calibration
+        red = calibrateColor(red, 'R');
+        green = calibrateColor(green, 'G');
+        blue = calibrateColor(blue, 'B');
+        
+        char col;
+        
+        // Improved color detection thresholds and logic
+        if (red < 150 && green < 150 && blue < 150) {
+            col = 'B';
+        } else if (green > red && green > blue) {
+            col = 'G';
+        } else if (red > green && red > blue) {
+            col = 'R';
+        } else if (blue > red && blue > green) {
+            col = 'B';
+        } else {
+            col = 'U';
+        }
+        
+        disableSensorLED();
+        _delay_ms(2);  // Reduced delay between readings
+        return col;
+}
 
+ISR(INT0_vect) {
+    pulse_count++;
+}
+
+void pinSetupCS() {
+    // Set S0-S3 and LED pin as outputs
+    DDRC |= (1 << CS_S0_PIN) | (1 << CS_S1_PIN) | (1 << CS_S2_PIN) | (1 << CS_S3_PIN);
+    // Set OUT pin as input with pull-up
+    DDRD &= ~(1<<CS_OUT_PIN);
+    PORTD |= (1<<CS_OUT_PIN);
+}
+
+void interruptSetupCS() {
+    EIMSK |= (1 << INT0);     // Enable INT0
+    EICRA |= (1 << ISC00);    // Trigger on any edge
+    sei();                     // Enable global interrupts
+}
+
+void colorSel(char color) {
+    switch(color) {
+        case 'R':
+            PORTB &= ~((1 << CS_S2_PIN) | (1 << CS_S3_PIN));  // S2=0, S3=0
+            break;
+        case 'G':
+            PORTB |= (1 << CS_S2_PIN);     // S2=1
+            PORTB |= (1 << CS_S3_PIN);     // S3=1
+            break;
+        case 'B':
+            PORTB &= ~(1 << CS_S2_PIN);    // S2=0
+            PORTB |= (1 << CS_S3_PIN);     // S3=1
+            break;
+    }
+}
+
+void enableSensorLED() {
+    PORTB |= (1 << CS_LED_PIN);
+}
+
+void disableSensorLED() {
+    PORTB &= ~(1 << CS_LED_PIN);
+}
+
+uint16_t measureColorFreq(char color) {
+    pulse_count = 0;
+    colorSel(color);
+    _delay_ms(50);  // Allow filter to settle
+    pulse_count = 0;  // Reset after settling
+    _delay_ms(100);  // Measure for 100ms
+    return pulse_count;
+}
+
+uint16_t calibrateColor(uint16_t rawValue, char color) {
+    // Adjusted calibration values based on typical sensor response
+    const uint16_t minValues[] = {30, 30, 25};  // Minimum values for R, G, B
+    const float scalingFactors[] = {1.0, 1.1, 0.9};  // Scaling factors for R, G, B
+    
+    uint8_t colorIndex;
+    switch(color) {
+        case 'R': colorIndex = 0; break;
+        case 'G': colorIndex = 1; break;
+        case 'B': colorIndex = 2; break;
+        default: return rawValue;
+    }
+    
+    if (rawValue <= minValues[colorIndex]) return 0;
+    return (uint16_t)((rawValue - minValues[colorIndex]) * scalingFactors[colorIndex]);
+}
 //--------------------------------------------
 // IR Sensor Functions
 //--------------------------------------------
@@ -98,29 +211,30 @@ int main(){
   while(1) {
     int leftVal  = readLeftSensor();
     int rightVal = readRightSensor();
-    
-    Serial.print("Left: ");
-    Serial.print(leftVal);
-    Serial.print(" | Right: ");
-    Serial.println(rightVal);
-    
+    char col = getColor();
+
+    if(col == 'G'){
+      stopMotors();
+      _delay_ms(1000);
+    }
+    else if(col == 'B'){
+      stopMotors();
+      _delay_ms(8000);
+    }
+    else{}
+
     if (leftVal == LOW && rightVal == HIGH) {
-      Serial.println("Action: Turn Right");
       turnRight(DEFAULT_SPEED);
     } 
     else if (leftVal == HIGH && rightVal == LOW) {
-      Serial.println("Action: Turn Left");
       turnLeft(DEFAULT_SPEED);
     } 
     else if (leftVal == LOW && rightVal == LOW) {
-      Serial.println("Action: Move Forward");
       moveForward(DEFAULT_SPEED);
     } 
     else if (leftVal == HIGH && rightVal == HIGH) {
-      Serial.println("Action: Searching for line");
       turnLeft(DEFAULT_SPEED / 2);
     }
-    
     delay(5);
   }
   
