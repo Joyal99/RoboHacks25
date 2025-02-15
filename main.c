@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <util/delay.h>
 #include <avr/io.h>
+#include <Servo.h>
 
 //-------------------- Motor Control Pins --------------------
 #define LEFTM_FOWARD_PIN  4
@@ -10,11 +11,14 @@
 #define RIGHTM_EN_PIN     3
 #define LEFTM_EN_PIN      11
 
-#define DEFAULT_SPEED     100
+#define DEFAULT_SPEED     90 
 
 //-------------------- IR Sensor Pins --------------------
 #define RIGHT_SENSOR 12
 #define LEFT_SENSOR  8
+// Define servo pulse width constants (microseconds)
+#define LEFT_MAX 2000    // 2ms pulse (full left)
+#define RIGHT_MAX 1000   // 1ms pulse (full right)
 
 //-------------------- Color Sensor Pins --------------------
 volatile uint16_t pulse_count = 0;    // Incremented by ISR
@@ -25,13 +29,16 @@ volatile uint16_t pulse_count = 0;    // Incremented by ISR
 #define CS_OUT_PIN  PD2  // Use PD2 for INT0
 #define CS_LED_PIN  PB5  // LED control pin
 
+Servo myServo;           // Create servo object
+const int servoPin = 9;  // PWM pin connected to servo
+
 // Tracks previously detected color so we don't re-trigger the same event repeatedly
 volatile char prevChar = 'U';
 
 //-------------------- Timing Variables --------------------
 // We'll check color once every 300 ms (adjust as needed)
 unsigned long lastColorCheck = 0;
-const unsigned long colorCheckInterval = 250;  // ms
+const unsigned long colorCheckInterval = 500;  // ms
 
 //--------------------------------------------
 // Motor Functions
@@ -50,7 +57,7 @@ void moveForward(uint8_t speed) {
   digitalWrite(LEFTM_BACK_PIN,    LOW);
   digitalWrite(RIGHTM_FOWARD_PIN, HIGH);
   digitalWrite(RIGHTM_BACK_PIN,   LOW);
-  analogWrite(LEFTM_EN_PIN, speed-15);
+  analogWrite(LEFTM_EN_PIN, speed);
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
@@ -59,7 +66,7 @@ void turnLeft(uint8_t speed) {
   digitalWrite(RIGHTM_BACK_PIN,   LOW);
   digitalWrite(LEFTM_FOWARD_PIN,  LOW);
   digitalWrite(LEFTM_BACK_PIN,    HIGH);
-  analogWrite(LEFTM_EN_PIN, speed-15);
+  analogWrite(LEFTM_EN_PIN, speed);
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
@@ -68,7 +75,7 @@ void turnRight(uint8_t speed) {
   digitalWrite(RIGHTM_BACK_PIN,   HIGH);
   digitalWrite(LEFTM_FOWARD_PIN,  HIGH);
   digitalWrite(LEFTM_BACK_PIN,    LOW);
-  analogWrite(LEFTM_EN_PIN, speed-15);
+  analogWrite(LEFTM_EN_PIN, speed);
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
@@ -79,6 +86,18 @@ void stopMotors() {
   digitalWrite(LEFTM_BACK_PIN,    LOW);
   digitalWrite(RIGHTM_FOWARD_PIN, LOW);
   digitalWrite(RIGHTM_BACK_PIN,   LOW);
+}
+
+void dropSeed(){
+  for(int i = 0; i<2; i++){
+    myServo.writeMicroseconds(LEFT_MAX);
+    _delay_ms(3);
+    myServo.writeMicroseconds(RIGHT_MAX);
+    _delay_ms(10);
+    myServo.writeMicroseconds(LEFT_MAX);
+    Serial.println("Servo centered.");
+    _delay_ms(3);
+  }
 }
 
 //--------------------------------------------
@@ -204,11 +223,11 @@ char getColor() {
   if (red < 150 && green < 150 && blue < 150) {
     col = 'L'; // Possibly black/low light
   }
-  else if (green > 2000 && red > 2000 && blue > 2000) {
+  else if (green > 300 && red > 600 && blue > 600) {
     col = 'W'; // White
   }
   else if (green > red && green > blue) {
-    col = 'G'; // Green
+    col = 'G'; // Green   
   }
   else if (red > green && red > blue) {
     col = 'R'; // Red
@@ -270,7 +289,7 @@ void followLine() {
 //--------------------------------------------
 void setup() {
   Serial.begin(9600);
-
+  myServo.attach(servoPin);
   pinSetupCS();
   motorPinSetup();
   setupSensors();
@@ -297,6 +316,7 @@ void loop() {
     // If we detect green (G) and it's a new detection
     if (col == 'G' && prevChar != 'G') {
       stopMotors();
+      dropSeed();
       delay(1000);     // 1 second stop
       prevChar = 'G';
     } 
