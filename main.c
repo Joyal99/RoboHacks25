@@ -11,7 +11,7 @@
 #define RIGHTM_EN_PIN     3
 #define LEFTM_EN_PIN      11
 
-#define DEFAULT_SPEED     90 
+#define DEFAULT_SPEED     75
 
 //-------------------- IR Sensor Pins --------------------
 #define RIGHT_SENSOR 12
@@ -89,15 +89,16 @@ void stopMotors() {
 }
 
 void dropSeed(){
-  for(int i = 0; i<2; i++){
     myServo.writeMicroseconds(LEFT_MAX);
     _delay_ms(3);
     myServo.writeMicroseconds(RIGHT_MAX);
     _delay_ms(10);
     myServo.writeMicroseconds(LEFT_MAX);
-    Serial.println("Servo centered.");
     _delay_ms(3);
-  }
+    myServo.writeMicroseconds(RIGHT_MAX);
+    _delay_ms(10);
+    myServo.writeMicroseconds(LEFT_MAX);
+
 }
 
 //--------------------------------------------
@@ -227,7 +228,10 @@ char getColor() {
     abs((int)red - (int)green) < 50 &&
     abs((int)red - (int)blue) < 50 &&
     abs((int)green - (int)blue) < 50) {
-  col = 'W';
+    col = 'W';
+  }
+  else if (green > red + 50 && green > blue + 50) {
+  col = 'G'; // Green
   }
   else if (green > red && green > blue) {
     col = 'G'; // Green   
@@ -297,7 +301,7 @@ void setup() {
   motorPinSetup();
   setupSensors();
   interruptSetupCS();
-  delay(1500);
+  delay(2500);
 }
 
 /**
@@ -326,6 +330,7 @@ void loop() {
     // If we detect blue (B) and it's a new detection
     else if (col == 'B' && prevChar != 'B') {
       stopMotors();
+      dropSeed();
       delay(8000);     // 8 second stop
       prevChar = 'B';
     }
