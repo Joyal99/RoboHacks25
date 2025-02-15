@@ -14,7 +14,9 @@
 #define CS_S2_PIN PB2
 #define CS_S3_PIN PB3
 #define CS_OUT_PIN PD2  
-#define CS_LED_PIN PB5  
+#define CS_LED_PIN PB5
+#define LEFT_SENSOR 12
+#define RIGHT_SENSOR 3  
 
 #define LEFT_MAX 2000    // 2ms pulse (full left)
 #define RIGHT_MAX 1000   // 1ms pulse (full right)
@@ -23,22 +25,6 @@ Servo myServo;           // Create servo object
 const int servoPin = 9;  // PWM pin connected to servo
 
 volatile uint16_t pulse_count = 0;  
-
-// UART STUFF****************************************
-void uart_init() {
-    UBRR0H = 0;  // Set baud rate to 9600 (16MHz clock)
-    UBRR0L = 103;
-    UCSR0B = (1 << TXEN0);  // Enable transmitter
-    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);  // 8-bit data format
-}
-
-void uart_print(const char* str) {
-    while (*str) {
-        while (!(UCSR0A & (1 << UDRE0)));  // Wait for empty buffer
-        UDR0 = *str++;
-    }
-}
-//*************************************************** */
 
 //MOTOR STUFF ******************************************
 void motorPinSetup(){
@@ -211,27 +197,52 @@ void dropSeed(){
   }
 //******************************************************************** */
 
+//IR SENSOR STUFF
+void setupSensors() {
+    Serial.begin(9600);
+    pinMode(LEFT_SENSOR, INPUT);
+    pinMode(RIGHT_SENSOR, INPUT);
+}
+
+// Function to read the left sensor value
+int readLeftSensor() {
+    int leftValue = digitalRead(LEFT_SENSOR);
+    Serial.println(leftValue);
+    delay(10);
+    return leftValue;
+}
+
+// Function to read the right sensor value
+int readRightSensor() {
+    int rightValue = digitalRead(RIGHT_SENSOR);
+    Serial.println(rightValue);
+    delay(10);
+    return rightValue;
+}
+//****************************************** */
+
 //MAIN STUFF YESSSS********************************************
 int main(){
     uart_init();
     pinSetupCS();
     interruptSetupCS();
     motorPinSetup();
+    setupSensors();
     myServo.attach(servoPin); 
 
     while(1){
         moveFoward();
 
-        int leftSensor = getRead();
-        int rightSensor = getRead();
+        int leftSensor = readLeftSensor();
+        int rightSensor = readRightSensor();
 
         while(leftSensor == 0){
             turnRight();
-            leftSensor = getRead();
+            leftSensor = readLeftSensor();
         }
         while(rightSensor == 0){
             turnLeft();
-            rightSensor = getRead();
+            rightSensor = readRightSensor();
         }
         char colorSeen = getColor();
         if(colorSeen == 'G') {
@@ -241,6 +252,6 @@ int main(){
             stop();
         }
         else{}
-        
+        _delay_us(10);
     }
 }
