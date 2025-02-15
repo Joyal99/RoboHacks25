@@ -223,8 +223,11 @@ char getColor() {
   if (red < 150 && green < 150 && blue < 150) {
     col = 'L'; // Possibly black/low light
   }
-  else if (green > 300 && red > 600 && blue > 600) {
-    col = 'W'; // White
+  else if (red > 500 && green > 500 && blue > 500 &&
+    abs((int)red - (int)green) < 50 &&
+    abs((int)red - (int)blue) < 50 &&
+    abs((int)green - (int)blue) < 50) {
+  col = 'W';
   }
   else if (green > red && green > blue) {
     col = 'G'; // Green   
