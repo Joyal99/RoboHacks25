@@ -27,14 +27,10 @@ void motorPinSetup(){
   pinMode(RIGHTM_EN_PIN, OUTPUT);
 }
 
-/* 
-   Given that your motors were turning in the opposite direction, we have 
-   inverted the logic here:
-   - "Forward" now sets the forward pins LOW and the backward pins HIGH.
-   - "Backward" (if used) would be the opposite.
-*/
+// In our current configuration, the correct "forward" movement 
+// (based on your wiring) is achieved by setting the forward pins LOW 
+// and the backward pins HIGH.
 void moveFoward(uint8_t speed) {
-  // Both motors move "forward" (i.e. the robot moves ahead)
   digitalWrite(LEFTM_FOWARD_PIN, LOW);
   digitalWrite(LEFTM_BACK_PIN,   HIGH);
   digitalWrite(RIGHTM_FOWARD_PIN, LOW);
@@ -43,12 +39,9 @@ void moveFoward(uint8_t speed) {
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
-/*
-   To pivot left, we want the left motor to run in reverse (forward pins HIGH)
-   and the right motor to keep moving forward.
-*/
+// To turn left, we make the left motor go in reverse (forward pin HIGH) 
+// and keep the right motor going forward.
 void turnLeft(uint8_t speed) {
-  // Left motor runs in reverse; right motor runs forward.
   digitalWrite(LEFTM_FOWARD_PIN, HIGH);
   digitalWrite(LEFTM_BACK_PIN,   LOW);
   digitalWrite(RIGHTM_FOWARD_PIN, LOW);
@@ -57,12 +50,9 @@ void turnLeft(uint8_t speed) {
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
-/*
-   To pivot right, we want the right motor to run in reverse and the left motor 
-   to keep moving forward.
-*/
+// To turn right, we make the right motor go in reverse (forward pin HIGH) 
+// and keep the left motor going forward.
 void turnRight(uint8_t speed) {
-  // Right motor runs in reverse; left motor runs forward.
   digitalWrite(LEFTM_FOWARD_PIN, LOW);
   digitalWrite(LEFTM_BACK_PIN,   HIGH);
   digitalWrite(RIGHTM_FOWARD_PIN, HIGH);
@@ -82,8 +72,7 @@ void stopMotors() {
 
 //-------------------- Main Function --------------------
 int main(){
-  init();  // Initialize the Arduino core
-  
+  init();  // Initialize Arduino core functions
   Serial.begin(9600);
   delay(1000);
   
@@ -92,33 +81,42 @@ int main(){
   pinMode(RIGHT_SENSOR, INPUT);
   
   while(1){
-    // Read sensor values (assume HIGH = black, LOW = white)
+    // Read sensor values (assuming HIGH = black, LOW = white)
     int leftVal = digitalRead(LEFT_SENSOR);
     int rightVal = digitalRead(RIGHT_SENSOR);
     
+    // Debug print of sensor states.
     Serial.print("Left Sensor: ");
     Serial.print(leftVal);
     Serial.print(" | Right Sensor: ");
     Serial.println(rightVal);
     
-    // Logic for line following:
-    // When right sensor sees white (0) and left sees black (1): turn left.
-    // When left sensor sees white (0) and right sees black (1): turn right.
-    // Otherwise, go straight.
+    // Explicit handling of all sensor combinations:
     if(leftVal == HIGH && rightVal == LOW) {
-      Serial.println("Turning Left");
+      // Left sees black, right sees white: robot is off to the right,
+      // so turn left.
+      Serial.println("Action: Turning Left");
       turnLeft(DEFAULT_SPEED);
     }
     else if(leftVal == LOW && rightVal == HIGH) {
-      Serial.println("Turning Right");
+      // Left sees white, right sees black: robot is off to the left,
+      // so turn right.
+      Serial.println("Action: Turning Right");
       turnRight(DEFAULT_SPEED);
     }
-    else {
-      Serial.println("Moving Forward");
+    else if(leftVal == HIGH && rightVal == HIGH) {
+      // Both sensors see black: on track, move forward.
+      Serial.println("Action: Both black, moving forward");
+      moveFoward(DEFAULT_SPEED);
+    }
+    else if(leftVal == LOW && rightVal == LOW) {
+      // Both sensors see white: line lost. You can choose to stop or
+      // keep moving forward. Here we choose to move forward.
+      Serial.println("Action: Both white, moving forward");
       moveFoward(DEFAULT_SPEED);
     }
     
-    delay(50); // Short delay for sensor update
+    delay(50); // Short delay for sensor updates.
   }
   
   return 0;
