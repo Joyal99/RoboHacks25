@@ -105,7 +105,7 @@ uint16_t calibrateColor(uint16_t rawValue, char color) {
     return (uint16_t)((rawValue - minValues[colorIndex]) * scalingFactors[colorIndex]);
 }
 
-// 🚀 **Main Code**
+
 void setup() {
     Serial.begin(9600);
     
