@@ -10,7 +10,7 @@
 #define RIGHTM_EN_PIN    3    
 #define LEFTM_EN_PIN     11   
 
-#define DEFAULT_SPEED 100      
+#define DEFAULT_SPEED 85     
 
 //-------------------- IR Sensor Pins --------------------
 #define RIGHT_SENSOR 12       
@@ -44,7 +44,7 @@ void moveForward(uint8_t speed) {
   digitalWrite(RIGHTM_FOWARD_PIN, HIGH);
   digitalWrite(RIGHTM_BACK_PIN,  LOW);
   analogWrite(LEFTM_EN_PIN, speed);
-  analogWrite(RIGHTM_EN_PIN, speed);
+  analogWrite(RIGHTM_EN_PIN, speed+10);
 }
 
 void turnLeft(uint8_t speed) {
@@ -62,7 +62,7 @@ void turnRight(uint8_t speed) {
   digitalWrite(LEFTM_FOWARD_PIN, HIGH);
   digitalWrite(LEFTM_BACK_PIN,   LOW);
   analogWrite(LEFTM_EN_PIN, speed);
-  analogWrite(RIGHTM_EN_PIN, speed);
+  analogWrite(RIGHTM_EN_PIN, speed+10);
 }
 
 void stopMotors() {
@@ -255,7 +255,7 @@ int main() {
 
     // Resume line following after color detection
     followLine();
-    _delay_ms(50);// Move forward at default speed
+    _delay_ms(5);// Move forward at default speed
   }
 
   return 0;
