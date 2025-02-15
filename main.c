@@ -255,33 +255,36 @@ int main(){
   myServo.attach(servoPin); 
 
   while(1){
-    // Drive forward at default speed.
-    moveFoward(DEFAULT_SPEED);
+    _delay_ms(1000);
 
-    int leftSensor = readLeftSensor();
-    int rightSensor = readRightSensor();
+  // TEST LEFT MOTOR
+  Serial.println("Testing LEFT motor forward");
+  // Set left motor to forward direction
+  digitalWrite(LEFTM_FOWARD_PIN, HIGH);
+  digitalWrite(LEFTM_BACK_PIN,   LOW);
+  // Enable left motor via PWM
+  analogWrite(LEFTM_EN_PIN, DEFAULT_SPEED);
+  _delay_ms(3000);  // run for 3 seconds
+  
+  Serial.println("Stopping LEFT motor");
+  analogWrite(LEFTM_EN_PIN, 0);
+  digitalWrite(LEFTM_FOWARD_PIN, LOW);
+  digitalWrite(LEFTM_BACK_PIN,   LOW);
+  _delay_ms(1000);
 
-    // For debugging, print a message after reading right sensor.
-    Serial.println("hello");
+  // TEST RIGHT MOTOR
+  Serial.println("Testing RIGHT motor forward");
+  // Set right motor to forward direction
+  digitalWrite(RIGHTM_FOWARD_PIN, HIGH);
+  digitalWrite(RIGHTM_BACK_PIN,   LOW);
+  // Enable right motor via PWM
+  analogWrite(RIGHTM_EN_PIN, DEFAULT_SPEED);
+  _delay_ms(3000);  // run for 3 seconds
+  
+  Serial.println("Stopping RIGHT motor");
+  analogWrite(RIGHTM_EN_PIN, 0);
+  digitalWrite(RIGHTM_FOWARD_PIN, LOW);
+  digitalWrite(RIGHTM_BACK_PIN,   LOW);
 
-    // Adjust course based on sensor input.
-    while(leftSensor == 0){
-      turnRight(DEFAULT_SPEED);
-      leftSensor = readLeftSensor();
-    }
-    while(rightSensor == 0){
-      turnLeft(DEFAULT_SPEED);
-      rightSensor = readRightSensor();
-    }
-
-    // Check color sensor and act.
-    char colorSeen = getColor();
-    if(colorSeen == 'G') {
-      dropSeed();
-    }
-    else if(colorSeen == 'B'){
-      stop();
-    }
-    _delay_us(10);
-  }
+  // End of test; loop forever.
 }
