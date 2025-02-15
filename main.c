@@ -211,7 +211,7 @@ int main(){
   while(1) {
     int leftVal  = readLeftSensor();
     int rightVal = readRightSensor();
-    char col = getColor();
+    //char col = getColor();
     
     /**if(col == 'G' && prevChar != 'G'){
       stopMotors();
