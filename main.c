@@ -24,7 +24,7 @@ volatile uint16_t pulse_count = 0;
 #define CS_S3_PIN PC3  // A3
 #define CS_OUT_PIN PD2  // Use PD2 for INT0
 #define CS_LED_PIN PB5  // LED control pin
-
+volatile char prevChar;
 //--------------------------------------------
 // Motor Functions
 //--------------------------------------------
@@ -212,16 +212,21 @@ int main(){
     int leftVal  = readLeftSensor();
     int rightVal = readRightSensor();
     char col = getColor();
-
-    if(col == 'G'){
+    
+    /**if(col == 'G' && prevChar != 'G'){
       stopMotors();
       _delay_ms(1000);
+      prevChar = 'G';
     }
-    else if(col == 'B'){
+    else if(col == 'B' && prevChar != 'B'){
       stopMotors();
       _delay_ms(8000);
+      prevChar = 'B';
     }
-    else{}
+    else{
+
+    }**/
+
 
     if (leftVal == LOW && rightVal == HIGH) {
       turnRight(DEFAULT_SPEED);
