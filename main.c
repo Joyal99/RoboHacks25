@@ -5,19 +5,21 @@
 #include <Servo.h>
 
 //-------------------- Motor Control Pins --------------------
-// Direction pins
+// Direction pins (unchanged)
 #define RIGHTM_FOWARD_PIN 4   // PD4
 #define RIGHTM_BACK_PIN   5   // PD5
 #define LEFTM_FOWARD_PIN  6   // PD6
 #define LEFTM_BACK_PIN    7   // PD7
-// Enable (PWM) pins for L298N
-#define LEFTM_EN_PIN   10    // PB2 (PWM)
-#define RIGHTM_EN_PIN  11    // PB3 (PWM)
+// Enable (PWM) pins for L298N:
+// Right motor remains on digital pin 11 (Timer2)
+// Left motor enable is moved from pin 10 (Timer1) to digital pin 3 (Timer2)
+#define LEFTM_EN_PIN   3    // Now on Timer2 PWM channel
+#define RIGHTM_EN_PIN  11   // Timer2 PWM channel
 
 //-------------------- Color Sensor (CS) Pins --------------------
-// We keep CS_OUT_PIN unchanged on PD2 (digital 2)
-#define CS_OUT_PIN 2         // PD2, remains unchanged
-// Reassign the other CS pins to analog inputs (A0-A4)
+// CS_OUT_PIN remains unchanged (digital 2)
+#define CS_OUT_PIN 2         // PD2, unchanged
+// Other CS sensor pins are moved to analog inputs
 #define CS_S0_PIN A0         // formerly PB0
 #define CS_S1_PIN A1         // formerly PB1
 #define CS_S2_PIN A2         // formerly PB2
@@ -25,8 +27,9 @@
 #define CS_LED_PIN A4        // formerly PB5
 
 //-------------------- IR Sensor Pins --------------------
-#define LEFT_SENSOR 12       // digital 12 (PB4)
-#define RIGHT_SENSOR 3       // digital 3 (PD3)
+// Left sensor remains the same; reassign right sensor from digital 3 to digital 8.
+#define LEFT_SENSOR 12       // digital 12
+#define RIGHT_SENSOR 8       // digital 8 (was 3, to free up Timer2 channel on pin 3)
 
 //-------------------- Servo & Other Definitions --------------------
 #define LEFT_MAX 2000    // 2ms pulse (full left)
@@ -34,7 +37,7 @@
 #define DEFAULT_SPEED 150  // PWM speed (0-255)
 
 Servo myServo;           // Create servo object
-const int servoPin = 9;  // Servo connected to digital 9
+const int servoPin = 9;  // Servo connected to digital 9 (uses Timer1)
 
 volatile uint16_t pulse_count = 0;  
 
@@ -98,7 +101,7 @@ void stop() {
   analogWrite(RIGHTM_EN_PIN, 0);
   digitalWrite(LEFTM_FOWARD_PIN, LOW);
   digitalWrite(LEFTM_BACK_PIN,   LOW);
-  digitalWrite(RIGHTM_FOWARD_PIN,LOW);
+  digitalWrite(RIGHTM_FOWARD_PIN, LOW);
   digitalWrite(RIGHTM_BACK_PIN,  LOW);
   _delay_ms(8000);
 }
@@ -107,7 +110,6 @@ void stop() {
 // COLOR SENSOR FUNCTIONS (using Arduino functions)
 //================================================================
 
-// Set up CS sensor pins.
 void pinSetupCS() {
   pinMode(CS_S0_PIN, OUTPUT);
   pinMode(CS_S1_PIN, OUTPUT);
@@ -126,7 +128,6 @@ void interruptSetupCS() {
   sei();                    // Enable global interrupts
 }
 
-// Selects the color filter.
 void colorSel(char color) {
   switch(color) {
     case 'R':
@@ -152,7 +153,6 @@ void disableSensorLED() {
   digitalWrite(CS_LED_PIN, LOW);
 }
 
-// Measures the pulse count for a given color.
 uint16_t measureColorFreq(char color) {
   pulse_count = 0;
   colorSel(color);
@@ -162,7 +162,6 @@ uint16_t measureColorFreq(char color) {
   return pulse_count;
 }
 
-// Calibration for the color sensor.
 uint16_t calibrateColor(uint16_t rawValue, char color) {
   const uint16_t minValues[] = {30, 30, 25};
   const float scalingFactors[] = {1.0, 1.1, 0.9};
@@ -177,7 +176,6 @@ uint16_t calibrateColor(uint16_t rawValue, char color) {
   return (uint16_t)((rawValue - minValues[colorIndex]) * scalingFactors[colorIndex]);
 }
 
-// Determine the color seen by the sensor.
 char getColor() {
   enableSensorLED();
   _delay_ms(50);  // Stabilization
@@ -247,6 +245,8 @@ int readRightSensor() {
 // MAIN FUNCTION
 //================================================================
 int main(){
+  init();  // Initialize Arduino core functions
+  
   uart_init();
   pinSetupCS();
   interruptSetupCS();
@@ -260,6 +260,9 @@ int main(){
 
     int leftSensor = readLeftSensor();
     int rightSensor = readRightSensor();
+
+    // For debugging, print a message after reading right sensor.
+    Serial.println("hello");
 
     // Adjust course based on sensor input.
     while(leftSensor == 0){
