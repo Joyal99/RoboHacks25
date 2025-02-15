@@ -31,14 +31,7 @@ volatile char prevChar = 'U';
 //-------------------- Timing Variables --------------------
 // We'll check color once every 300 ms (adjust as needed)
 unsigned long lastColorCheck = 0;
-const unsigned long colorCheckInterval = 300;  // ms
-
-
-//--------------------- Servo pulse ---------------
-#define LEFT_MAX 2000    // 2ms pulse (full left)
-#define RIGHT_MAX 1000   // 1ms pulse (full right)
-Servo myServo;           // Create servo object
-const int servoPin = 9;  // PWM pin connected to servo
+const unsigned long colorCheckInterval = 250;  // ms
 
 //--------------------------------------------
 // Motor Functions
@@ -57,7 +50,7 @@ void moveForward(uint8_t speed) {
   digitalWrite(LEFTM_BACK_PIN,    LOW);
   digitalWrite(RIGHTM_FOWARD_PIN, HIGH);
   digitalWrite(RIGHTM_BACK_PIN,   LOW);
-  analogWrite(LEFTM_EN_PIN, speed);
+  analogWrite(LEFTM_EN_PIN, speed-15);
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
@@ -66,7 +59,7 @@ void turnLeft(uint8_t speed) {
   digitalWrite(RIGHTM_BACK_PIN,   LOW);
   digitalWrite(LEFTM_FOWARD_PIN,  LOW);
   digitalWrite(LEFTM_BACK_PIN,    HIGH);
-  analogWrite(LEFTM_EN_PIN, speed);
+  analogWrite(LEFTM_EN_PIN, speed-15);
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
@@ -75,7 +68,7 @@ void turnRight(uint8_t speed) {
   digitalWrite(RIGHTM_BACK_PIN,   HIGH);
   digitalWrite(LEFTM_FOWARD_PIN,  HIGH);
   digitalWrite(LEFTM_BACK_PIN,    LOW);
-  analogWrite(LEFTM_EN_PIN, speed);
+  analogWrite(LEFTM_EN_PIN, speed-15);
   analogWrite(RIGHTM_EN_PIN, speed);
 }
 
@@ -271,20 +264,7 @@ void followLine() {
     turnLeft(DEFAULT_SPEED / 2);
   }
 }
-//--------------------------------------------
-// Servo Functions
-//--------------------------------------------
-void dropSeed(){
-  for(int i = 0; i<2; i++){
-    myServo.writeMicroseconds(LEFT_MAX);
-    _delay_ms(3);
-    myServo.writeMicroseconds(RIGHT_MAX);
-    _delay_ms(10);
-    myServo.writeMicroseconds(LEFT_MAX);
-    Serial.println("Servo centered.");
-    _delay_ms(3);
-  }
-}
+
 //--------------------------------------------
 // Arduino Setup & Loop
 //--------------------------------------------
@@ -295,6 +275,7 @@ void setup() {
   motorPinSetup();
   setupSensors();
   interruptSetupCS();
+  delay(1500);
 }
 
 /**
@@ -316,7 +297,6 @@ void loop() {
     // If we detect green (G) and it's a new detection
     if (col == 'G' && prevChar != 'G') {
       stopMotors();
-      dropSeed();
       delay(1000);     // 1 second stop
       prevChar = 'G';
     } 
