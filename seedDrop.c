@@ -1,154 +1,163 @@
 #include <Arduino.h>
-#include <util/delay.h>
 #include <avr/io.h>
+#include <util/delay.h>
 #include <Servo.h>
 
-//-------------------- Motor Control Pins --------------------
-#define LEFTM_FORWARD_PIN  PD4
-#define LEFTM_BACK_PIN     PD5
-#define RIGHTM_FORWARD_PIN PD6
-#define RIGHTM_BACK_PIN    PD7
-#define RIGHTM_EN_PIN      PD3
-#define LEFTM_EN_PIN       PB3
+//-------------------- Configuration --------------------
+#define DEFAULT_SPEED     90
+#define LEFT_MAX        2000
+#define RIGHT_MAX       1000
+#define COLOR_CHECK_MS   500
 
-#define DEFAULT_SPEED      90
+//-------------------- Motor Control --------------------
+// Pin mapping for Arduino Nano
+#define LEFTM_FWD  4  // PD4
+#define LEFTM_BCK  5  // PD5
+#define RIGHTM_FWD 6  // PD6
+#define RIGHTM_BCK 7  // PD7
+#define RIGHTM_EN  3  // PD3 (OCR2B)
+#define LEFTM_EN   11 // PB3 (OCR2A)
 
-//-------------------- IR Sensor Pins --------------------
-#define RIGHT_SENSOR_PIN PD6  // Pin 12 (PORTD6)
-#define LEFT_SENSOR_PIN  PB0  // Pin 8  (PORTB0)
+//-------------------- IR Sensors --------------------
+#define LEFT_IR    8   // PB0
+#define RIGHT_IR   12  // PD6
 
-//-------------------- Color Sensor Pins --------------------
+//-------------------- Color Sensor --------------------
 volatile uint16_t pulse_count = 0;
-#define CS_S0_PIN   PC0
-#define CS_S1_PIN   PC1
-#define CS_S2_PIN   PC2
-#define CS_S3_PIN   PC3
-#define CS_OUT_PIN  PD2
-#define CS_LED_PIN  PB5
+#define S0  A0  // PC0
+#define S1  A1  // PC1
+#define S2  A2  // PC2
+#define S3  A3  // PC3
+#define OUT 2   // PD2 (INT0)
+#define LED 13  // PB5
 
-Servo myServo;
-const int servoPin = 9;
+Servo seedServo;
 
 //-------------------- State Management --------------------
-volatile char prevColor = 'U';
-unsigned long lastColorCheck = 0;
-const unsigned long colorCheckInterval = 500;
+volatile uint8_t last_color = 0;
+uint32_t last_check = 0;
 
-//-------------------- Port Manipulation Macros --------------------
-#define SET_MOTOR_DIR(fwd, back, port) (port = (port & 0x0F) | (fwd << 4) | (back << 5))
-#define READ_SENSOR(pin, port) ((port & (1 << pin)) ? HIGH : LOW
+//-------------------- Port Manipulation Helpers --------------------
+#define MOTOR_DIR(a,b,c,d) PORTD = (PORTD & 0x0F) | (a<<4 | b<<5 | c<<6 | d<<7)
+#define SET_PWM(left,right) do{OCR2A = left; OCR2B = right;} while(0)
 
-//-------------------- Motor Control Functions --------------------
-void motorPinSetup() {
-    DDRD  |= 0xF8;  // PD3-PD7 as outputs (pins 3-7)
-    DDRB  |= (1 << LEFT_EN_PIN);  // PB3 as output (pin 11)
-    PORTD &= 0x07;  // Initialize motor pins low
+void setupPWM() {
+    // Configure Timer2 for Fast PWM (8-bit)
+    TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+    TCCR2B = _BV(CS22);  // Prescaler 64 (~490Hz)
 }
 
-void setMotors(uint8_t leftSpeed, uint8_t rightSpeed) {
-    OCR2A = leftSpeed;   // PB3 (pin 11)
-    OCR2B = rightSpeed;  // PD3 (pin 3)
+void motorSetup() {
+    DDRD  |= _BV(DDD3) | _BV(DDD4) | _BV(DDD5) | _BV(DDD6) | _BV(DDD7);
+    DDRB  |= _BV(DDB3);
+    setupPWM();
+    SET_PWM(0, 0);
+    MOTOR_DIR(0,0,0,0);
 }
 
-void moveForward() {
-    SET_MOTOR_DIR(1, 0, PORTD);
-    setMotors(DEFAULT_SPEED, DEFAULT_SPEED);
+void irSetup() {
+    DDRB  &= ~_BV(DDB0);
+    PORTB |= _BV(PORTB0);
+    DDRD  &= ~_BV(DDD6);
+    PORTD |= _BV(PORTD6);
 }
 
-void turnLeft() {
-    SET_MOTOR_DIR(0, 1, PORTD);
-    setMotors(DEFAULT_SPEED, DEFAULT_SPEED);
-}
-
-void turnRight() {
-    SET_MOTOR_DIR(1, 0, PORTD);
-    setMotors(DEFAULT_SPEED, DEFAULT_SPEED);
-}
-
-void stopMotors() {
-    setMotors(0, 0);
-    PORTD &= 0x0F;  // Clear all motor direction pins
-}
-
-//-------------------- IR Sensor Functions --------------------
-void setupSensors() {
-    DDRB  &= ~(1 << LEFT_SENSOR_PIN);  // PB0 as input
-    PORTB |=  (1 << LEFT_SENSOR_PIN);  // Enable pull-up
-    DDRD  &= ~(1 << RIGHT_SENSOR_PIN); // PD6 as input
-    PORTD |=  (1 << RIGHT_SENSOR_PIN); // Enable pull-up
-}
-
-uint8_t readSensors() {
-    return ((PIND >> RIGHT_SENSOR_PIN) & 1) | ((PINB << 1) & 2);
+uint8_t readIRs() {
+    return ((PIND >> 6) & 1) | ((PINB & 1) << 1);
 }
 
 //-------------------- Color Sensor Functions --------------------
-void pinSetupCS() {
-    ADCSRA &= ~(1 << ADEN);
-    DDRC  |= 0x0F;
-    PORTC |= (1 << CS_S0_PIN);
-    DDRB  |= (1 << CS_LED_PIN);
+void colorSetup() {
+    ADCSRA &= ~_BV(ADEN);  // Disable ADC
+    DDRC  |= _BV(DDC0) | _BV(DDC1) | _BV(DDC2) | _BV(DDC3);
+    PORTC |= _BV(PORTC0);  // S0=1, S1=0 (20% scaling)
+    
+    EICRA  = _BV(ISC00);   // Any edge triggers INT0
+    EIMSK  = _BV(INT0);
+    DDRB  |= _BV(DDB5);    // LED pin
 }
 
 ISR(INT0_vect) { pulse_count++; }
 
-uint16_t measureColorFreq(char color) {
-    pulse_count = 0;
-    PORTC = (PORTC & 0xF3) | ((color == 'G') ? 0x0C : (color == 'B') ? 0x08 : 0x00);
+uint16_t measureChannel(uint8_t filter) {
+    PORTC = (PORTC & 0xF3) | ((filter & 3) << 2);
     _delay_us(500);
-    return pulse_count * 25;  // Compensate for shorter measurement
+    pulse_count = 0;
+    _delay_ms(3);
+    return pulse_count * 15;
 }
 
-char getColor() {
-    PORTB |= (1 << CS_LED_PIN);
-    uint16_t r = measureColorFreq('R');
-    uint16_t g = measureColorFreq('G');
-    uint16_t b = measureColorFreq('B');
-    PORTB &= ~(1 << CS_LED_PIN);
+uint8_t detectColor() {
+    PORTB |= _BV(PORTB5);
+    
+    const uint16_t r = measureChannel(0);
+    const uint16_t g = measureChannel(3);
+    const uint16_t b = measureChannel(2);
+    
+    PORTB &= ~_BV(PORTB5);
 
-    if (r + g + b < 300) return 'L';
-    if (abs(r - g) < 50 && abs(r - b) < 50 && abs(g - b) < 50) return 'W';
-    if (g > r && g > b) return 'G';
-    if (r > g && r > b) return 'R';
-    if (b > r && b > g) return 'B';
-    return 'U';
+    if (r + g + b < 300) return 0;  // Black
+    if (abs(r-g)<50 && abs(r-b)<50) return 4;  // White
+    
+    if (g > r && g > b) return 1;  // Green
+    if (r > g && r > b) return 2;  // Red
+    if (b > g && b > r) return 3;  // Blue
+    
+    return 0xFF;  // Unknown
+}
+
+//-------------------- Servo Control --------------------
+void dropSeed() {
+    seedServo.writeMicroseconds(LEFT_MAX);
+    _delay_ms(300);
+    seedServo.writeMicroseconds(RIGHT_MAX);
+    _delay_ms(300);
 }
 
 //-------------------- Main Program --------------------
 void setup() {
-    TCCR2A = (1 << COM2A1) | (1 << COM2B1) | (1 << WGM21) | (1 << WGM20);
-    TCCR2B = (1 << CS22);
-    motorPinSetup();
-    setupSensors();
-    pinSetupCS();
-    myServo.attach(servoPin);
-    EIMSK = (1 << INT0);
+    seedServo.attach(9);
+    motorSetup();
+    irSetup();
+    colorSetup();
     sei();
 }
 
 void loop() {
-    switch(readSensors()) {
-        case 0: moveForward(); break;
-        case 1: turnRight();  break;
-        case 2: turnLeft();   break;
-        case 3: turnLeft();  break;
+    // Line following
+    switch(readIRs()) {
+        case 0:  // Both on line
+            MOTOR_DIR(1,0,1,0);
+            SET_PWM(DEFAULT_SPEED, DEFAULT_SPEED);
+            break;
+        case 1:  // Right off
+            MOTOR_DIR(1,0,0,1);
+            SET_PWM(DEFAULT_SPEED, DEFAULT_SPEED);
+            break;
+        case 2:  // Left off
+            MOTOR_DIR(0,1,1,0);
+            SET_PWM(DEFAULT_SPEED, DEFAULT_SPEED);
+            break;
+        case 3:  // Both off
+            MOTOR_DIR(0,1,0,1);
+            SET_PWM(DEFAULT_SPEED/2, DEFAULT_SPEED/2);
     }
 
-    if (millis() - lastColorCheck >= colorCheckInterval) {
-        lastColorCheck = millis();
-        char color = getColor();
+    // Color detection
+    if (millis() - last_check > COLOR_CHECK_MS) {
+        last_check = millis();
+        const uint8_t color = detectColor();
         
-        if (color != prevColor) {
-            prevColor = color;
-            if (color == 'G') {
-                stopMotors();
-                myServo.writeMicroseconds(LEFT_MAX);
-                _delay_ms(300);
-                myServo.writeMicroseconds(RIGHT_MAX);
-                _delay_ms(300);
+        if (color != last_color) {
+            last_color = color;
+            
+            if (color == 1) {  // Green
+                SET_PWM(0, 0);
+                dropSeed();
+                _delay_ms(1000);
             }
-            else if (color == 'B') {
-                stopMotors();
+            else if (color == 3) {  // Blue
+                SET_PWM(0, 0);
                 _delay_ms(8000);
             }
         }
