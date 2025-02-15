@@ -12,6 +12,9 @@ extern "C" {
 #define F_CPU 16000000UL // CPU frequency
 #define BAUD 9600 // Desired baud rate
 #define MYUBRR F_CPU/16/BAUD-1 // UBRR calculation
+#define SERVO_STRAIGHT 185
+#define SERVO_LEFT     253
+#define SERVO_RIGHT     85
 
 volatile unsigned long timer_millis;
 
@@ -39,30 +42,20 @@ void setup_timer() {
     sei();                  // Enable global interrupts
 }
 
-void update_servo(const char* direction) {
-  uint16_t servo_index;
+typedef enum { STRAIGHT, LEFT, RIGHT } Direction;
 
-  // Check the string input and set the servo position based on direction
-  if (strcmp(direction, "straight") == 0) {
-    // Servo points straight
-    servo_index = 185;  
-  } else if (strcmp(direction, "left") == 0) {
-    // Servo points left for a left turn
-    servo_index = 253;  
-  } else if (strcmp(direction, "right") == 0) {
-    // Servo points right for a right turn
-    servo_index = 85;  
-  } else {
-    // Default behavior if the direction is not recognized
-    servo_index = 169.5;  // Set to straight if invalid input
-  }
-
-  // Ensure the servo position is within valid range
-  if (servo_index < 85) servo_index = 85;
-  if (servo_index > 253) servo_index = 253;
-
-  // Set the PWM value for the servo motor
-  OCR1A = servo_index;  // Update PWM for the servo motor
+void update_servo(Direction direction) {
+    uint16_t servo_index;
+    switch(direction) {
+        case STRAIGHT: servo_index = SERVO_STRAIGHT; break;
+        case LEFT:     servo_index = SERVO_LEFT; break;
+        case RIGHT:    servo_index = SERVO_RIGHT;  break;
+        default:       servo_index = 185; // default to straight
+    }
+    // Limit range and update PWM...
+    if (servo_index < 85) servo_index = 85;
+    if (servo_index > 253) servo_index = 253;
+    OCR1A = servo_index;
 }
 void setup() {
   setup_timer();
